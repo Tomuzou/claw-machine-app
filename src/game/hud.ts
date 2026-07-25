@@ -43,10 +43,11 @@ export class Hud {
     });
     actions.appendChild(muteBtn);
 
+    // スマホでは .btn-label が CSS で非表示になり、アイコンだけのボタンになる
     const cameraBtn = document.createElement('button');
     cameraBtn.type = 'button';
     cameraBtn.className = 'hud-btn';
-    cameraBtn.textContent = '📷 視点リセット';
+    cameraBtn.innerHTML = '📷<span class="btn-label"> 視点リセット</span>';
     cameraBtn.title = 'カメラを初期位置に戻す';
     cameraBtn.addEventListener('click', callbacks.onCameraReset);
     actions.appendChild(cameraBtn);
@@ -54,7 +55,7 @@ export class Hud {
     const resetBtn = document.createElement('button');
     resetBtn.type = 'button';
     resetBtn.className = 'hud-btn';
-    resetBtn.textContent = 'リセット';
+    resetBtn.innerHTML = '🔄<span class="btn-label"> リセット</span>';
     resetBtn.title = 'ゲームを最初からやり直す';
     resetBtn.addEventListener('click', () => location.reload());
     actions.appendChild(resetBtn);

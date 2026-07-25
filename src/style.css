@@ -28,7 +28,7 @@ body {
   top: 0;
   left: 0;
   right: 0;
-  padding: 10px 14px;
+  padding: calc(10px + env(safe-area-inset-top)) 14px 10px;
   pointer-events: none;
 }
 
@@ -39,6 +39,14 @@ body {
   font-size: 1rem;
   font-weight: 700;
   text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
+  white-space: nowrap;
+}
+
+.hud-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex-shrink: 1;
+  min-width: 0;
 }
 
 .hud-title {
@@ -60,6 +68,8 @@ body {
   color: #eceff1;
   font-size: 0.85rem;
   cursor: pointer;
+  white-space: nowrap;
+  touch-action: manipulation;
 }
 
 .hud-btn:hover {
@@ -99,7 +109,7 @@ body {
 /* ---- 操作ボタン ---- */
 #controls-ui {
   position: absolute;
-  bottom: 18px;
+  bottom: calc(18px + env(safe-area-inset-bottom));
   left: 0;
   right: 0;
   display: flex;
@@ -290,4 +300,98 @@ body {
 .prize-meta {
   font-size: 0.75rem;
   color: #b0bec5;
+}
+
+/* ---- スマホ向けのコンパクト表示 ---- */
+@media (max-width: 640px) {
+  .hud-top {
+    gap: 10px;
+    font-size: 0.82rem;
+  }
+
+  /* ステージ名は省略し、スコア類とボタンを1行に収める */
+  .hud-title {
+    display: none;
+  }
+
+  /* ボタンはアイコンのみ表示 */
+  .btn-label {
+    display: none;
+  }
+
+  .hud-actions {
+    gap: 6px;
+  }
+
+  .hud-btn {
+    padding: 6px 10px;
+    font-size: 1rem;
+    line-height: 1;
+  }
+
+  .hud-message {
+    font-size: 0.78rem;
+  }
+
+  .hud-timer {
+    top: 52px;
+    right: 12px;
+    font-size: 1.4rem;
+  }
+
+  .dpad {
+    gap: 5px;
+  }
+
+  .dpad-btn {
+    width: 48px;
+    height: 48px;
+    font-size: 1.1rem;
+  }
+
+  #descend-btn {
+    width: 78px;
+    height: 78px;
+    font-size: 1rem;
+  }
+
+  #controls-ui {
+    padding: 0 12px;
+    bottom: calc(12px + env(safe-area-inset-bottom));
+  }
+
+  #mode-select h1 {
+    font-size: 1.3rem;
+  }
+
+  .mode-btn {
+    padding: 14px 18px;
+  }
+
+  .prize-grid {
+    grid-template-columns: repeat(2, 1fr);
+    max-height: 48vh;
+  }
+}
+
+/* 横持ちスマホ: 高さが足りないので更に詰める */
+@media (max-height: 450px) {
+  .dpad-btn {
+    width: 42px;
+    height: 42px;
+  }
+
+  #descend-btn {
+    width: 64px;
+    height: 64px;
+    font-size: 0.9rem;
+  }
+
+  .hud-message {
+    display: none;
+  }
+
+  .prize-grid {
+    max-height: 40vh;
+  }
 }
