@@ -2,7 +2,6 @@
 import * as CANNON from 'cannon-es';
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
-import { clone as cloneWithSkeleton } from 'three/addons/utils/SkeletonUtils.js';
 import type { PrizeConfig, StageConfig } from '../types';
 
 export interface PrizeEntity {
@@ -19,11 +18,36 @@ const RING_COLOR = '#ffd700';
 const gltfLoader = new GLTFLoader();
 const modelCache = new Map<string, Promise<THREE.Group>>();
 
+/**
+ * スキンメッシュ(ボーン入り)を静的メッシュに置き換える。
+ * 景品はアニメーションしないため、バインドポーズのジオメトリをそのまま使えばよい。
+ * (SkinnedMesh のままだとスケルトン複製やスケールの扱いが壊れやすく、描画されない事故が起きる)
+ */
+function stripSkinning(root: THREE.Object3D): void {
+  const skinned: THREE.SkinnedMesh[] = [];
+  root.traverse((obj) => {
+    if (obj instanceof THREE.SkinnedMesh) skinned.push(obj);
+  });
+  for (const mesh of skinned) {
+    const parent = mesh.parent;
+    if (!parent) continue;
+    const staticMesh = new THREE.Mesh(mesh.geometry, mesh.material);
+    staticMesh.position.copy(mesh.position);
+    staticMesh.quaternion.copy(mesh.quaternion);
+    staticMesh.scale.copy(mesh.scale);
+    parent.add(staticMesh);
+    parent.remove(mesh);
+  }
+}
+
 function loadModel(file: string): Promise<THREE.Group> {
   let promise = modelCache.get(file);
   if (!promise) {
     const url = `${import.meta.env.BASE_URL}models/${file}`;
-    promise = gltfLoader.loadAsync(url).then((gltf) => gltf.scene);
+    promise = gltfLoader.loadAsync(url).then((gltf) => {
+      stripSkinning(gltf.scene);
+      return gltf.scene;
+    });
     modelCache.set(file, promise);
   }
   return promise;
@@ -42,13 +66,13 @@ function fitModelToSize(instance: THREE.Group, config: PrizeConfig): void {
   box.setFromObject(instance);
   const center = box.getCenter(new THREE.Vector3());
   instance.position.sub(center);
+  // 縦横比の違いでモデルが判定ボックスより小さくなった場合、
+  // 中央寄せのままだと接地時に浮いて見えるので、足元を判定ボックスの底面に揃える
+  box.setFromObject(instance);
+  instance.position.y += -config.size.y / 2 - box.min.y;
   instance.traverse((obj) => {
     if (obj instanceof THREE.Mesh) {
       obj.castShadow = true;
-    }
-    // スキンメッシュはバウンディング判定が不正確になりがちなので、カリングで消えないようにする
-    if (obj instanceof THREE.SkinnedMesh) {
-      obj.frustumCulled = false;
     }
   });
 }
@@ -59,9 +83,7 @@ function createPrizeMesh(config: PrizeConfig): THREE.Object3D {
     const group = new THREE.Group();
     loadModel(config.model)
       .then((scene) => {
-        // スキンメッシュ(ボーン入り)は通常の clone だとスケルトンが複製されず
-        // スケールが効かないため、SkeletonUtils の clone を使う
-        const instance = cloneWithSkeleton(scene) as THREE.Group;
+        const instance = scene.clone(true);
         fitModelToSize(instance, config);
         group.add(instance);
       })
