@@ -8,11 +8,43 @@ interface ToneOptions {
   slideTo?: number; // 終了周波数(グリッサンド)
 }
 
+// ---- アーム操作中のワクワクBGMループ(チップチューン風) ----
+// 8分音符×16ステップの明るいループ。null は休符
+const STEP_DURATION = 0.18; // 8分音符の長さ(秒) ≒ テンポ166
+const LEAD_PATTERN: Array<number | null> = [
+  523.25, // C5
+  659.25, // E5
+  783.99, // G5
+  659.25, // E5
+  1046.5, // C6
+  783.99, // G5
+  880.0, // A5
+  783.99, // G5
+  698.46, // F5
+  880.0, // A5
+  1046.5, // C6
+  880.0, // A5
+  783.99, // G5
+  659.25, // E5
+  587.33, // D5
+  659.25, // E5
+];
+// 4分音符ごとのベース(偶数ステップで鳴らす)
+const BASS_PATTERN: Array<number | null> = [
+  130.81, null, 98.0, null, 130.81, null, 98.0, null,
+  174.61, null, 174.61, null, 196.0, null, 196.0, null,
+];
+
 export class Sfx {
   private ctx: AudioContext | null = null;
   private master: GainNode | null = null;
   private motorGain: GainNode | null = null;
   private muted = false;
+
+  /** メロディーループのスケジューラ */
+  private melodyTimer: number | null = null;
+  private melodyNextTime = 0;
+  private melodyStep = 0;
 
   constructor() {
     const unlock = (): void => {
@@ -35,11 +67,56 @@ export class Sfx {
     return this.muted;
   }
 
-  /** クレーン移動中のモーター音(ハム音)のON/OFF */
+  /** クレーン移動中のサウンド(ワクワクBGMループ + かすかなモーター音)のON/OFF */
   setMotor(active: boolean): void {
-    if (!this.ctx || !this.motorGain) return;
-    const target = active ? 0.045 : 0;
-    this.motorGain.gain.setTargetAtTime(target, this.ctx.currentTime, 0.06);
+    if (active) {
+      this.startMelody();
+    } else {
+      this.stopMelody();
+    }
+    if (this.ctx && this.motorGain) {
+      this.motorGain.gain.setTargetAtTime(active ? 0.02 : 0, this.ctx.currentTime, 0.06);
+    }
+  }
+
+  private startMelody(): void {
+    const ctx = this.ensure();
+    if (!ctx || this.melodyTimer !== null) return;
+    this.melodyNextTime = ctx.currentTime + 0.05;
+    // 先読みスケジューリング: 60ms ごとに直近 0.2 秒ぶんの音符を予約する
+    this.melodyTimer = window.setInterval(() => this.scheduleMelody(), 60);
+    this.scheduleMelody();
+  }
+
+  private stopMelody(): void {
+    if (this.melodyTimer !== null) {
+      window.clearInterval(this.melodyTimer);
+      this.melodyTimer = null;
+    }
+    this.melodyStep = 0;
+  }
+
+  private scheduleMelody(): void {
+    const ctx = this.ctx;
+    if (!ctx) return;
+    while (this.melodyNextTime < ctx.currentTime + 0.2) {
+      const step = this.melodyStep % LEAD_PATTERN.length;
+      const when = this.melodyNextTime;
+
+      const lead = LEAD_PATTERN[step];
+      if (lead !== null) {
+        this.toneAt(lead, STEP_DURATION * 0.9, when, { type: 'square', volume: 0.09 });
+      }
+      const bass = BASS_PATTERN[step];
+      if (bass !== null) {
+        this.toneAt(bass, STEP_DURATION * 1.7, when, { type: 'triangle', volume: 0.14 });
+      }
+      // 各ステップに軽いリズムのチッという音
+      this.toneAt(step % 4 === 0 ? 7000 : 5200, 0.02, when, { type: 'square', volume: 0.025 });
+
+      this.melodyNextTime += STEP_DURATION;
+      this.melodyStep++;
+    }
   }
 
   /** クレジット投入音 */
@@ -121,9 +198,21 @@ export class Sfx {
 
   private tone(freq: number, duration: number, options: ToneOptions = {}): void {
     const ctx = this.ensure();
+    if (!ctx) return;
+    this.toneAt(freq, duration, ctx.currentTime + (options.delay ?? 0), options);
+  }
+
+  /** 絶対時刻(AudioContext基準)を指定して音符を予約する */
+  private toneAt(
+    freq: number,
+    duration: number,
+    when: number,
+    options: Omit<ToneOptions, 'delay'> = {}
+  ): void {
+    const ctx = this.ensure();
     if (!ctx || !this.master) return;
-    const { type = 'sine', volume = 0.25, delay = 0, slideTo } = options;
-    const start = ctx.currentTime + delay;
+    const { type = 'sine', volume = 0.25, slideTo } = options;
+    const start = when;
 
     const osc = ctx.createOscillator();
     osc.type = type;
