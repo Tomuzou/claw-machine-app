@@ -1,6 +1,7 @@
-// physics/prizes.ts — 景品の剛体生成と、アーキタイプ別メッシュの構築・同期
+// physics/prizes.ts — 景品の剛体生成と、メッシュ(GLBモデル or プリミティブ)の構築・同期
 import * as CANNON from 'cannon-es';
 import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import type { PrizeConfig, StageConfig } from '../types';
 
 export interface PrizeEntity {
@@ -13,7 +14,60 @@ export interface PrizeEntity {
 const SKIN_COLOR = '#ffe0bd';
 const RING_COLOR = '#ffd700';
 
+// ---- GLBモデルの読み込み(種類ごとに1回だけロードしてキャッシュ) ----
+const gltfLoader = new GLTFLoader();
+const modelCache = new Map<string, Promise<THREE.Group>>();
+
+function loadModel(file: string): Promise<THREE.Group> {
+  let promise = modelCache.get(file);
+  if (!promise) {
+    const url = `${import.meta.env.BASE_URL}models/${file}`;
+    promise = gltfLoader.loadAsync(url).then((gltf) => gltf.scene);
+    modelCache.set(file, promise);
+  }
+  return promise;
+}
+
+/** 読み込んだモデルを config.size に収まるよう等倍スケールし、中心を原点に合わせる */
+function fitModelToSize(instance: THREE.Group, config: PrizeConfig): void {
+  const box = new THREE.Box3().setFromObject(instance);
+  const size = box.getSize(new THREE.Vector3());
+  const scale = Math.min(
+    config.size.x / Math.max(size.x, 1e-6),
+    config.size.y / Math.max(size.y, 1e-6),
+    config.size.z / Math.max(size.z, 1e-6)
+  );
+  instance.scale.setScalar(scale);
+  box.setFromObject(instance);
+  const center = box.getCenter(new THREE.Vector3());
+  instance.position.sub(center);
+  instance.traverse((obj) => {
+    if (obj instanceof THREE.Mesh) {
+      obj.castShadow = true;
+    }
+  });
+}
+
 function createPrizeMesh(config: PrizeConfig): THREE.Object3D {
+  // GLBモデル指定があれば非同期で読み込み、失敗時はプリミティブ造形にフォールバック
+  if (config.model) {
+    const group = new THREE.Group();
+    loadModel(config.model)
+      .then((scene) => {
+        const instance = scene.clone(true);
+        fitModelToSize(instance, config);
+        group.add(instance);
+      })
+      .catch((err) => {
+        console.warn(`モデル ${config.model} の読み込みに失敗。プリミティブで表示します`, err);
+        group.add(createProceduralMesh(config));
+      });
+    return group;
+  }
+  return createProceduralMesh(config);
+}
+
+function createProceduralMesh(config: PrizeConfig): THREE.Object3D {
   const primary = new THREE.MeshStandardMaterial({ color: config.colors.primary, roughness: 0.8 });
   const secondary = new THREE.MeshStandardMaterial({
     color: config.colors.secondary ?? '#ffffff',

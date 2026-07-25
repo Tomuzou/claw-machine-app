@@ -28,8 +28,10 @@ export interface PrizeCatalogEntry {
   category: string;
   /** メッシュの造形パターン */
   archetype: PrizeArchetype;
-  /** 配色(CSSカラー文字列) */
+  /** 配色(CSSカラー文字列)。GLBモデル使用時はフォールバック用 */
   colors: { primary: string; secondary?: string };
+  /** public/models/ 内のGLBファイル名。省略時はプリミティブで造形する */
+  model?: string;
   /** バウンディングサイズ(単位: m) — 剛体の当たり判定に使用 */
   size: Vec3;
   /** 質量(単位: kg) — cannon-es の剛体に渡す */

@@ -66,6 +66,19 @@ src/
 - [x] **Phase 6**: JSONによる景品カタログ(約20種)の読み込み、ランダム/セレクトの2モード対応
 - [ ] **Phase 7**: サウンド、演出、UI仕上げ(効果音とカメラ操作は実装済み)
 
+## 3Dモデルのクレジット
+
+景品の3Dモデルは [Poly Pizza](https://poly.pizza/) で公開されているフリー素材を使用しています。
+GLBモデルが未指定・読み込み失敗の景品はプリミティブによる手続き生成で表示されます。
+
+| モデル | 作者 | ライセンス |
+| --- | --- | --- |
+| Rabbit / Cat / Frog / Astronaut / Robot | [Quaternius](https://quaternius.com/) | CC0 |
+| Panda | jeremy | CC0 |
+| Bear Cub | Poly by Google | CC0 |
+| [Bear](https://poly.pizza/m/3Eb9oLfZYIc) | jiang liu | CC-BY |
+| [Penguin](https://poly.pizza/m/9Ift-39Akov) | jeremy | CC-BY |
+
 ## デプロイ
 
 `main` ブランチへの push で GitHub Actions が自動ビルドし、GitHub Pages へデプロイされます
