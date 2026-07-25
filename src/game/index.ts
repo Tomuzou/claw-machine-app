@@ -1,6 +1,6 @@
 // game/ — ゲーム状態管理(状態機械・把持判定・スコアとクレジット)
 import * as CANNON from 'cannon-es';
-import { CLAW, CHUTE, DROP, TURN } from '../config/constants';
+import { CLAW, CHUTE, GRAB, SLIP, TURN } from '../config/constants';
 import type { Claw } from '../scene/claw';
 import type { Controls } from '../controls';
 import type { PrizeEntity } from '../physics/prizes';
@@ -52,9 +52,8 @@ export class Game {
   /** 爪追従用のキネマティックなアンカーボディ */
   private readonly anchor: CANNON.Body;
 
-  /** 運搬中に「意図的に落とす」進行度(0-1)。null なら最後まで運ぶ */
-  private dropAtProgress: number | null = null;
-  private carryStart = { x: 0, z: 0, dist: 1 };
+  /** 現在の把持のグリップ品質(0〜1)。低いほど滑りやすく、拘束も弱い */
+  private grip = 0;
   private grabTimer = 0;
   private releaseTimer = 0;
 
@@ -167,12 +166,37 @@ export class Game {
     }
   }
 
+  /** 掴んでいる景品の重さに応じた速度低下(重量感の演出) */
+  private heldMassFactor(coef: number): number {
+    const mass = this.heldPrize ? this.heldPrize.config.mass : 0;
+    return 1 / (1 + mass * coef);
+  }
+
+  /**
+   * 毎フレームの連続滑り判定。
+   * グリップが弱い・高得点・揺れが大きいほど滑り落ちやすい。
+   */
+  private updateHeldSlip(dt: number): void {
+    if (!this.heldPrize) return;
+    const v = this.heldPrize.body.velocity;
+    const swing = Math.min(Math.hypot(v.x, v.z), 2);
+    const rate =
+      SLIP.baseRate *
+      (1 - this.grip) ** 2 *
+      (1 + this.heldPrize.config.score * SLIP.scoreFactor) *
+      (1 + swing * SLIP.swingFactor);
+    if (Math.random() < rate * dt) {
+      this.releaseHeldPrize();
+      this.hud.setMessage('あーっ、滑り落ちてしまった…');
+      this.sfx.dropFail();
+    }
+  }
+
   private updateLifting(dt: number): void {
-    this.claw.y = Math.min(this.claw.y + CLAW.liftSpeed * dt, CLAW.carryY);
+    // 重い景品ほどゆっくり持ち上がる
+    this.claw.y = Math.min(this.claw.y + CLAW.liftSpeed * this.heldMassFactor(0.9) * dt, CLAW.carryY);
+    this.updateHeldSlip(dt);
     if (this.claw.y >= CLAW.carryY) {
-      const dx = CLAW.homeX - this.claw.x;
-      const dz = CLAW.homeZ - this.claw.z;
-      this.carryStart = { x: this.claw.x, z: this.claw.z, dist: Math.max(Math.hypot(dx, dz), 1e-6) };
       this.setPhase('carrying');
     }
   }
@@ -182,17 +206,10 @@ export class Game {
     const dz = CLAW.homeZ - this.claw.z;
     const dist = Math.hypot(dx, dz);
 
-    // 「確率で意図的に落とす」— 運搬の途中で拘束を外す
-    if (this.heldPrize && this.dropAtProgress !== null) {
-      const progress = 1 - dist / this.carryStart.dist;
-      if (progress >= this.dropAtProgress) {
-        this.releaseHeldPrize();
-        this.hud.setMessage('あーっ、落ちてしまった…');
-        this.sfx.dropFail();
-      }
-    }
+    this.updateHeldSlip(dt);
 
-    const step = CLAW.moveSpeed * dt;
+    // 重い景品ほど運搬もゆっくり(揺れも増えて滑りやすくなる)
+    const step = CLAW.moveSpeed * this.heldMassFactor(0.5) * dt;
     if (dist <= step) {
       this.claw.x = CLAW.homeX;
       this.claw.z = CLAW.homeZ;
@@ -245,7 +262,9 @@ export class Game {
         break;
       case 'lifting':
         if (this.heldPrize) {
-          this.hud.setMessage('持ち上げ中…うまく運べるか？');
+          this.hud.setMessage(
+            this.grip < 0.4 ? '掴みが浅い…！落ちるな落ちるな…' : '持ち上げ中…うまく運べるか？'
+          );
           this.sfx.liftSuccess();
         } else {
           this.hud.setMessage('何も掴めなかった…');
@@ -261,10 +280,15 @@ export class Game {
     }
   }
 
-  /** 爪の真下にある景品を探し、あれば constraint で拘束する */
+  /**
+   * 爪の真下にある景品を探し、グリップ品質を計算して拘束する。
+   * - 判定半径は狭め(爪の真下にほぼ重ねる必要あり)
+   * - 中心からのズレ・質量・サイズでグリップ品質(0〜1)が決まる
+   * - グリップが低いと: そもそも掴めない / 拘束が弱く垂れ下がる / 滑りやすい
+   */
   private attemptGrab(): void {
     let best: PrizeEntity | null = null;
-    let bestDist: number = CLAW.grabRadius;
+    let bestDist: number = GRAB.radius;
     for (const prize of this.prizes) {
       if (prize.captured) continue;
       const dx = prize.body.position.x - this.claw.x;
@@ -277,23 +301,38 @@ export class Game {
     }
     if (!best) return;
 
+    // グリップ品質 = 中心ズレ × 質量 × サイズ の複合
+    const offsetFactor = 0.4 + 0.6 * (1 - bestDist / GRAB.radius); // 中心ほど良い
+    const massFactor = 1 / (1 + best.config.mass * GRAB.massPenalty); // 重いほど悪い
+    const maxDim = Math.max(best.config.size.x, best.config.size.z);
+    const sizeFactor = clamp(1.2 - maxDim / GRAB.sizePenaltyDiv, 0.35, 1); // 大きいほど悪い
+    this.grip = clamp(offsetFactor * massFactor * sizeFactor, 0, 1);
+
+    // 爪を閉じた瞬間の把持成功判定(グリップが低いとそもそも持ち上がらない)
+    if (Math.random() > GRAB.instantSuccessBase + this.grip * 0.9) {
+      this.grip = 0;
+      return;
+    }
+
     best.body.wakeUp();
+    // 掴んだ位置(爪の真下)に拘束点を置く: 中心を外して掴むと傾いてぶら下がる
+    const gripWorld = new CANNON.Vec3(
+      this.claw.x,
+      best.body.position.y + best.config.size.y * 0.35,
+      this.claw.z
+    );
+    const pivotInPrize = best.body.pointToLocalFrame(gripWorld);
+    // 拘束の強さもグリップ依存: 弱いと重い景品は垂れ下がり、揺れで振り回される
+    const maxForce = 8 + this.grip * 50;
     this.constraint = new CANNON.PointToPointConstraint(
       this.anchor,
       new CANNON.Vec3(0, -0.15, 0),
       best.body,
-      new CANNON.Vec3(0, best.config.size.y * 0.3, 0),
-      60
+      pivotInPrize,
+      maxForce
     );
     this.world.addConstraint(this.constraint);
     this.heldPrize = best;
-
-    // 掴んだ瞬間に「途中で落とすかどうか」を確率で決めておく
-    const dropChance = Math.min(
-      DROP.maxChance,
-      DROP.baseChance + best.config.score * DROP.perScore
-    );
-    this.dropAtProgress = Math.random() < dropChance ? 0.15 + Math.random() * 0.65 : null;
   }
 
   private releaseHeldPrize(): void {
@@ -305,7 +344,7 @@ export class Game {
       this.heldPrize.body.wakeUp();
       this.heldPrize = null;
     }
-    this.dropAtProgress = null;
+    this.grip = 0;
   }
 
   /** アンカーボディを爪の位置に追従させる */
