@@ -1,9 +1,49 @@
-// scene/ — カメラ・ライト・筐体(ガラスケース、土台、落とし口)の3Dモデル
-// TODO(Phase 1): Three.js の Scene / PerspectiveCamera / WebGLRenderer を構築する
-// TODO(Phase 1): 環境光 + 平行光源のライティングを設定する
-// TODO(Phase 1): クレーンゲーム筐体のジオメトリ(枠、ガラス、床、落とし口)を配置する
+// scene/ — レンダラー・カメラ・ライトの初期化
+import * as THREE from 'three';
 
-export function createScene(): void {
-  // TODO(Phase 1): 実装
-  throw new Error('Not implemented yet (Phase 1)');
+export interface SceneContext {
+  scene: THREE.Scene;
+  camera: THREE.PerspectiveCamera;
+  renderer: THREE.WebGLRenderer;
+}
+
+export function createScene(container: HTMLElement): SceneContext {
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x1a1a2e);
+
+  const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 50);
+  camera.position.set(0.75, 1.2, 1.85);
+  camera.lookAt(0, 0.3, 0);
+
+  const renderer = new THREE.WebGLRenderer({ antialias: true });
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  container.appendChild(renderer.domElement);
+
+  const ambient = new THREE.AmbientLight(0xffffff, 0.55);
+  scene.add(ambient);
+
+  const sun = new THREE.DirectionalLight(0xfff4e0, 1.6);
+  sun.position.set(1.6, 3, 2);
+  sun.castShadow = true;
+  sun.shadow.mapSize.set(1024, 1024);
+  sun.shadow.camera.left = -1.5;
+  sun.shadow.camera.right = 1.5;
+  sun.shadow.camera.top = 1.5;
+  sun.shadow.camera.bottom = -1.5;
+  scene.add(sun);
+
+  const fill = new THREE.DirectionalLight(0xa0c4ff, 0.4);
+  fill.position.set(-1.5, 1.5, -1);
+  scene.add(fill);
+
+  window.addEventListener('resize', () => {
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+  });
+
+  return { scene, camera, renderer };
 }
