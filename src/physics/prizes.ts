@@ -2,6 +2,7 @@
 import * as CANNON from 'cannon-es';
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { clone as cloneWithSkeleton } from 'three/addons/utils/SkeletonUtils.js';
 import type { PrizeConfig, StageConfig } from '../types';
 
 export interface PrizeEntity {
@@ -45,6 +46,10 @@ function fitModelToSize(instance: THREE.Group, config: PrizeConfig): void {
     if (obj instanceof THREE.Mesh) {
       obj.castShadow = true;
     }
+    // スキンメッシュはバウンディング判定が不正確になりがちなので、カリングで消えないようにする
+    if (obj instanceof THREE.SkinnedMesh) {
+      obj.frustumCulled = false;
+    }
   });
 }
 
@@ -54,7 +59,9 @@ function createPrizeMesh(config: PrizeConfig): THREE.Object3D {
     const group = new THREE.Group();
     loadModel(config.model)
       .then((scene) => {
-        const instance = scene.clone(true);
+        // スキンメッシュ(ボーン入り)は通常の clone だとスケルトンが複製されず
+        // スケールが効かないため、SkeletonUtils の clone を使う
+        const instance = cloneWithSkeleton(scene) as THREE.Group;
         fitModelToSize(instance, config);
         group.add(instance);
       })
