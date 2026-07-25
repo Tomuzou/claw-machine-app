@@ -29,14 +29,19 @@ export function createScene(container: HTMLElement): SceneContext {
   container.appendChild(renderer.domElement);
 
   // マウスドラッグ / ホイール / タッチでの視点変更
+  // 操作しやすいように可動範囲を筐体正面側に制限し、パン(平行移動)は無効にする
   const cameraControls = new OrbitControls(camera, renderer.domElement);
   cameraControls.target.copy(DEFAULT_CAMERA_TARGET);
   cameraControls.enableDamping = true;
   cameraControls.dampingFactor = 0.08;
-  cameraControls.minDistance = 0.6;
-  cameraControls.maxDistance = 5;
-  cameraControls.minPolarAngle = 0.1;
-  cameraControls.maxPolarAngle = Math.PI * 0.49; // 地面より下へは回り込めない
+  cameraControls.enablePan = false; // 注視点がズレて迷子になるのを防ぐ
+  cameraControls.rotateSpeed = 0.7;
+  cameraControls.minDistance = 1.0;
+  cameraControls.maxDistance = 3.2;
+  cameraControls.minPolarAngle = 0.35; // 真上からの見下ろしすぎを防ぐ
+  cameraControls.maxPolarAngle = 1.35; // 水平・床下への回り込みを防ぐ
+  cameraControls.minAzimuthAngle = -Math.PI * 0.42; // 左右は正面±約75°まで
+  cameraControls.maxAzimuthAngle = Math.PI * 0.42;
   cameraControls.update();
 
   const resetCamera = (): void => {

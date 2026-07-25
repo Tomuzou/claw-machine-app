@@ -72,6 +72,30 @@ body {
   text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
 }
 
+.hud-timer {
+  position: absolute;
+  top: 54px;
+  right: 16px;
+  font-size: 1.7rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  text-shadow: 0 2px 5px rgba(0, 0, 0, 0.8);
+}
+
+.hud-timer.warn {
+  color: #ff5252;
+  animation: timer-pulse 0.5s infinite alternate;
+}
+
+@keyframes timer-pulse {
+  from {
+    transform: scale(1);
+  }
+  to {
+    transform: scale(1.15);
+  }
+}
+
 /* ---- 操作ボタン ---- */
 #controls-ui {
   position: absolute;

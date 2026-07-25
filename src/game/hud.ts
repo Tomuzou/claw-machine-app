@@ -10,6 +10,7 @@ export class Hud {
   private readonly creditEl: HTMLSpanElement;
   private readonly scoreEl: HTMLSpanElement;
   private readonly messageEl: HTMLDivElement;
+  private readonly timerEl: HTMLDivElement;
 
   constructor(root: HTMLElement, stageName: string, callbacks: HudCallbacks) {
     const hud = document.createElement('div');
@@ -65,7 +66,23 @@ export class Hud {
     this.messageEl.className = 'hud-message';
     hud.appendChild(this.messageEl);
 
+    this.timerEl = document.createElement('div');
+    this.timerEl.className = 'hud-timer';
+    this.timerEl.style.display = 'none';
+    hud.appendChild(this.timerEl);
+
     root.appendChild(hud);
+  }
+
+  /** 残り時間を表示する。null で非表示。warn=true で赤色強調 */
+  setTimer(seconds: number | null, warn = false): void {
+    if (seconds === null) {
+      this.timerEl.style.display = 'none';
+      return;
+    }
+    this.timerEl.style.display = 'block';
+    this.timerEl.textContent = `⏱ ${seconds}`;
+    this.timerEl.classList.toggle('warn', warn);
   }
 
   setCredits(credits: number): void {

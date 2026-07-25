@@ -119,6 +119,11 @@ export class Sfx {
     }
   }
 
+  /** 残り時間カウントダウンの警告音 */
+  tick(): void {
+    this.tone(1050, 0.06, { type: 'square', volume: 0.15 });
+  }
+
   /** クレジット投入音 */
   coin(): void {
     this.tone(1320, 0.07, { type: 'square', volume: 0.15 });

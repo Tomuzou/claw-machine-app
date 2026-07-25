@@ -1,6 +1,6 @@
 // game/ — ゲーム状態管理(状態機械・把持判定・スコアとクレジット)
 import * as CANNON from 'cannon-es';
-import { CLAW, CHUTE, DROP } from '../config/constants';
+import { CLAW, CHUTE, DROP, TURN } from '../config/constants';
 import type { Claw } from '../scene/claw';
 import type { Controls } from '../controls';
 import type { PrizeEntity } from '../physics/prizes';
@@ -27,7 +27,8 @@ interface GameDeps {
   stage: StageConfig;
 }
 
-const IDLE_MESSAGE = '移動: 矢印キー / ボタン　降下: スペース / ボタン(1クレジット)';
+const IDLE_MESSAGE =
+  '移動: 矢印キー / ボタン　降下: スペース / ボタン(1クレジット)　時間切れで自動降下！';
 
 function clamp(v: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, v));
@@ -56,6 +57,10 @@ export class Game {
   private carryStart = { x: 0, z: 0, dist: 1 };
   private grabTimer = 0;
   private releaseTimer = 0;
+
+  /** 待機フェーズの残り時間(秒)。0で自動降下 */
+  private turnTimer: number = TURN.timeLimit;
+  private lastShownSeconds: number | null = null;
 
   constructor(deps: GameDeps) {
     this.world = deps.world;
@@ -119,17 +124,30 @@ export class Game {
     this.claw.x = clamp(this.claw.x + this.controls.moveX * CLAW.moveSpeed * dt, CLAW.minX, CLAW.maxX);
     this.claw.z = clamp(this.claw.z + this.controls.moveZ * CLAW.moveSpeed * dt, CLAW.minZ, CLAW.maxZ);
 
-    if (this.controls.consumeDescend()) {
-      if (this.credits <= 0) {
-        this.setPhase('gameover');
-        return;
-      }
-      this.credits -= 1;
-      this.hud.setCredits(this.credits);
-      this.claw.setOpenTarget(1);
-      this.sfx.coin();
-      this.setPhase('descending');
+    // 制限時間のカウントダウン。0になったらその場で自動降下
+    this.turnTimer -= dt;
+    const seconds = Math.max(0, Math.ceil(this.turnTimer));
+    if (seconds !== this.lastShownSeconds) {
+      this.lastShownSeconds = seconds;
+      this.hud.setTimer(seconds, seconds <= TURN.warnAt);
+      if (seconds > 0 && seconds <= TURN.warnAt) this.sfx.tick();
     }
+
+    if (this.controls.consumeDescend() || this.turnTimer <= 0) {
+      this.startDescend();
+    }
+  }
+
+  private startDescend(): void {
+    if (this.credits <= 0) {
+      this.setPhase('gameover');
+      return;
+    }
+    this.credits -= 1;
+    this.hud.setCredits(this.credits);
+    this.claw.setOpenTarget(1);
+    this.sfx.coin();
+    this.setPhase('descending');
   }
 
   private updateDescending(dt: number): void {
@@ -206,6 +224,13 @@ export class Game {
 
   private setPhase(phase: GamePhase): void {
     this.phase = phase;
+    if (phase === 'idle') {
+      // 新しいターン開始: 制限時間をリセット
+      this.turnTimer = TURN.timeLimit;
+      this.lastShownSeconds = null;
+    } else {
+      this.hud.setTimer(null);
+    }
     switch (phase) {
       case 'idle':
         this.hud.setMessage(IDLE_MESSAGE);

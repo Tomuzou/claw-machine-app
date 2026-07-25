@@ -36,6 +36,12 @@ export const CLAW = {
   grabRadius: 0.17, // 爪先からこの水平距離内の景品を掴める
 } as const;
 
+/** ターンごとの制限時間 */
+export const TURN = {
+  timeLimit: 30, // 待機(操作)フェーズの制限時間(秒)。0になると自動で降下する
+  warnAt: 5, // 残りこの秒数からカウントダウン音を鳴らす
+} as const;
+
 /** 「確率で意図的に落とす」挙動のパラメータ */
 export const DROP = {
   baseChance: 0.2, // 最低の落下確率
