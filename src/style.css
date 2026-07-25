@@ -146,3 +146,124 @@ body {
 #descend-btn:active {
   transform: scale(0.94);
 }
+
+/* ---- モード選択画面 ---- */
+#mode-select {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  padding: 20px;
+  background: rgba(16, 16, 34, 0.92);
+  overflow-y: auto;
+}
+
+#mode-select h1 {
+  margin: 0;
+  font-size: 1.7rem;
+  text-shadow: 0 2px 6px rgba(0, 0, 0, 0.6);
+}
+
+.mode-lead {
+  margin: 0;
+  color: #b0bec5;
+}
+
+.mode-buttons {
+  display: flex;
+  gap: 14px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.mode-btn {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 18px 26px;
+  border: 2px solid rgba(255, 255, 255, 0.25);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.08);
+  color: #eceff1;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.mode-btn strong {
+  font-size: 1.15rem;
+}
+
+.mode-btn span {
+  font-size: 0.85rem;
+  color: #b0bec5;
+}
+
+.mode-btn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.18);
+  border-color: #ffca28;
+}
+
+.mode-btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.mode-btn.sub {
+  padding: 12px 18px;
+}
+
+.prize-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 8px;
+  width: min(720px, 100%);
+  max-height: 52vh;
+  overflow-y: auto;
+  padding: 4px;
+}
+
+.prize-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  padding: 10px 12px;
+  border: 2px solid rgba(255, 255, 255, 0.18);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.06);
+  color: #eceff1;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.12s, background 0.12s;
+}
+
+.prize-card:hover {
+  background: rgba(255, 255, 255, 0.14);
+}
+
+.prize-card.selected {
+  border-color: #ffca28;
+  background: rgba(255, 202, 40, 0.18);
+}
+
+.prize-dot {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.4);
+}
+
+.prize-name {
+  font-size: 0.88rem;
+  font-weight: 700;
+}
+
+.prize-meta {
+  font-size: 0.75rem;
+  color: #b0bec5;
+}

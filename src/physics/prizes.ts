@@ -1,4 +1,4 @@
-// physics/prizes.ts — 景品の剛体生成と、対応するメッシュとの同期
+// physics/prizes.ts — 景品の剛体生成と、アーキタイプ別メッシュの構築・同期
 import * as CANNON from 'cannon-es';
 import * as THREE from 'three';
 import type { PrizeConfig, StageConfig } from '../types';
@@ -10,59 +10,128 @@ export interface PrizeEntity {
   captured: boolean;
 }
 
-const TYPE_COLORS: Record<string, number> = {
-  plush_bear: 0xc98a4b,
-  capsule_ball: 0x42a5f5,
-  figure_box: 0xab47bc,
-};
+const SKIN_COLOR = '#ffe0bd';
+const RING_COLOR = '#ffd700';
 
 function createPrizeMesh(config: PrizeConfig): THREE.Object3D {
-  const color = TYPE_COLORS[config.type] ?? 0x9e9e9e;
-  const mat = new THREE.MeshStandardMaterial({ color, roughness: 0.8 });
+  const primary = new THREE.MeshStandardMaterial({ color: config.colors.primary, roughness: 0.8 });
+  const secondary = new THREE.MeshStandardMaterial({
+    color: config.colors.secondary ?? '#ffffff',
+    roughness: 0.8,
+  });
+  const { x: sx, y: sy, z: sz } = config.size;
   const group = new THREE.Group();
+  const add = (mesh: THREE.Mesh): void => {
+    mesh.castShadow = true;
+    group.add(mesh);
+  };
 
-  if (config.type === 'capsule_ball') {
-    const ball = new THREE.Mesh(new THREE.SphereGeometry(config.size.x / 2, 24, 16), mat);
-    ball.castShadow = true;
-    group.add(ball);
-    const capMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.8 });
-    const cap = new THREE.Mesh(
-      new THREE.SphereGeometry(config.size.x / 2 + 0.001, 24, 8, 0, Math.PI * 2, 0, Math.PI / 2),
-      capMat
-    );
-    cap.castShadow = true;
-    group.add(cap);
-  } else if (config.type === 'plush_bear') {
-    const body = new THREE.Mesh(
-      new THREE.BoxGeometry(config.size.x, config.size.y * 0.72, config.size.z),
-      mat
-    );
-    body.position.y = -config.size.y * 0.14;
-    body.castShadow = true;
-    group.add(body);
-    const head = new THREE.Mesh(new THREE.SphereGeometry(config.size.x * 0.42, 20, 14), mat);
-    head.position.y = config.size.y * 0.3;
-    head.castShadow = true;
-    group.add(head);
-    for (const sx of [-1, 1]) {
-      const ear = new THREE.Mesh(new THREE.SphereGeometry(config.size.x * 0.14, 12, 8), mat);
-      ear.position.set(sx * config.size.x * 0.3, config.size.y * 0.48, 0);
-      ear.castShadow = true;
-      group.add(ear);
+  switch (config.archetype) {
+    case 'ball': {
+      const ball = new THREE.Mesh(new THREE.SphereGeometry(sx / 2, 24, 16), primary);
+      add(ball);
+      const cap = new THREE.Mesh(
+        new THREE.SphereGeometry(sx / 2 + 0.001, 24, 8, 0, Math.PI * 2, 0, Math.PI / 2),
+        secondary
+      );
+      add(cap);
+      break;
     }
-  } else {
-    const boxMesh = new THREE.Mesh(
-      new THREE.BoxGeometry(config.size.x, config.size.y, config.size.z),
-      mat
-    );
-    boxMesh.castShadow = true;
-    group.add(boxMesh);
+    case 'plush_bear': {
+      const body = new THREE.Mesh(new THREE.BoxGeometry(sx, sy * 0.7, sz), primary);
+      body.position.y = -sy * 0.14;
+      add(body);
+      const head = new THREE.Mesh(new THREE.SphereGeometry(sx * 0.42, 20, 14), primary);
+      head.position.y = sy * 0.28;
+      add(head);
+      for (const side of [-1, 1]) {
+        const ear = new THREE.Mesh(new THREE.SphereGeometry(sx * 0.14, 12, 8), secondary);
+        ear.position.set(side * sx * 0.3, sy * 0.46, 0);
+        add(ear);
+      }
+      break;
+    }
+    case 'plush_rabbit': {
+      const body = new THREE.Mesh(new THREE.BoxGeometry(sx, sy * 0.55, sz), primary);
+      body.position.y = -sy * 0.2;
+      add(body);
+      const head = new THREE.Mesh(new THREE.SphereGeometry(sx * 0.4, 20, 14), primary);
+      head.position.y = sy * 0.12;
+      add(head);
+      for (const side of [-1, 1]) {
+        const ear = new THREE.Mesh(new THREE.SphereGeometry(sx * 0.13, 12, 8), secondary);
+        ear.scale.y = 2.6;
+        ear.position.set(side * sx * 0.18, sy * 0.4, 0);
+        add(ear);
+      }
+      break;
+    }
+    case 'plush_round': {
+      const body = new THREE.Mesh(new THREE.SphereGeometry(sy / 2, 24, 16), primary);
+      body.scale.set(sx / sy, 1, sz / sy);
+      add(body);
+      const belly = new THREE.Mesh(new THREE.SphereGeometry(sy * 0.34, 20, 14), secondary);
+      belly.position.set(0, -sy * 0.06, sz * 0.22);
+      add(belly);
+      break;
+    }
+    case 'figure': {
+      const base = new THREE.Mesh(new THREE.BoxGeometry(sx, sy * 0.12, sz), secondary);
+      base.position.y = -sy * 0.44;
+      add(base);
+      const body = new THREE.Mesh(
+        new THREE.CylinderGeometry(sx * 0.22, sx * 0.3, sy * 0.6, 12),
+        primary
+      );
+      body.position.y = -sy * 0.06;
+      add(body);
+      const head = new THREE.Mesh(
+        new THREE.SphereGeometry(sx * 0.28, 16, 12),
+        new THREE.MeshStandardMaterial({ color: SKIN_COLOR, roughness: 0.7 })
+      );
+      head.position.y = sy * 0.34;
+      add(head);
+      break;
+    }
+    case 'keychain': {
+      const charm = new THREE.Mesh(new THREE.SphereGeometry(sx / 2, 16, 12), primary);
+      charm.position.y = -sy * 0.12;
+      add(charm);
+      const ring = new THREE.Mesh(
+        new THREE.TorusGeometry(sx * 0.24, sx * 0.05, 8, 20),
+        new THREE.MeshStandardMaterial({ color: RING_COLOR, metalness: 0.8, roughness: 0.3 })
+      );
+      ring.position.y = sy * 0.3;
+      add(ring);
+      break;
+    }
+    case 'flatbox': {
+      const body = new THREE.Mesh(new THREE.BoxGeometry(sx, sy, sz), primary);
+      add(body);
+      const stripe = new THREE.Mesh(
+        new THREE.BoxGeometry(sx + 0.002, sy + 0.002, sz * 0.3),
+        secondary
+      );
+      add(stripe);
+      break;
+    }
+    case 'box':
+    default: {
+      const body = new THREE.Mesh(new THREE.BoxGeometry(sx, sy, sz), primary);
+      add(body);
+      const band = new THREE.Mesh(
+        new THREE.BoxGeometry(sx + 0.002, sy * 0.25, sz + 0.002),
+        secondary
+      );
+      add(band);
+      break;
+    }
   }
   return group;
 }
 
 function createPrizeShape(config: PrizeConfig): CANNON.Shape {
-  if (config.type === 'capsule_ball') {
+  if (config.archetype === 'ball' || config.archetype === 'keychain') {
     return new CANNON.Sphere(config.size.x / 2);
   }
   return new CANNON.Box(
