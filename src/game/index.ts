@@ -5,6 +5,7 @@ import type { Claw } from '../scene/claw';
 import type { Controls } from '../controls';
 import type { PrizeEntity } from '../physics/prizes';
 import type { StageConfig } from '../types';
+import type { Sfx } from '../audio';
 import type { Hud } from './hud';
 
 export type GamePhase =
@@ -22,6 +23,7 @@ interface GameDeps {
   claw: Claw;
   controls: Controls;
   hud: Hud;
+  sfx: Sfx;
   stage: StageConfig;
 }
 
@@ -37,6 +39,7 @@ export class Game {
   private readonly claw: Claw;
   private readonly controls: Controls;
   private readonly hud: Hud;
+  private readonly sfx: Sfx;
 
   private phase: GamePhase = 'idle';
   private credits: number;
@@ -60,6 +63,7 @@ export class Game {
     this.claw = deps.claw;
     this.controls = deps.controls;
     this.hud = deps.hud;
+    this.sfx = deps.sfx;
     this.credits = deps.stage.initialCredits;
 
     this.anchor = new CANNON.Body({
@@ -101,6 +105,14 @@ export class Game {
     this.syncAnchor();
     this.claw.update(dt);
     this.checkCaptures();
+
+    // クレーンが動いている間はモーター音を鳴らす
+    const moving =
+      this.phase === 'descending' ||
+      this.phase === 'lifting' ||
+      this.phase === 'carrying' ||
+      (this.phase === 'idle' && (this.controls.moveX !== 0 || this.controls.moveZ !== 0));
+    this.sfx.setMotor(moving);
   }
 
   private updateIdle(dt: number): void {
@@ -115,6 +127,7 @@ export class Game {
       this.credits -= 1;
       this.hud.setCredits(this.credits);
       this.claw.setOpenTarget(1);
+      this.sfx.coin();
       this.setPhase('descending');
     }
   }
@@ -157,6 +170,7 @@ export class Game {
       if (progress >= this.dropAtProgress) {
         this.releaseHeldPrize();
         this.hud.setMessage('あーっ、落ちてしまった…');
+        this.sfx.dropFail();
       }
     }
 
@@ -166,7 +180,10 @@ export class Game {
       this.claw.z = CLAW.homeZ;
       this.releaseTimer = 0;
       this.claw.setOpenTarget(1);
-      if (this.heldPrize) this.hud.setMessage('落とし口へリリース！');
+      if (this.heldPrize) {
+        this.hud.setMessage('落とし口へリリース！');
+        this.sfx.release();
+      }
       this.releaseHeldPrize();
       this.setPhase('releasing');
     } else {
@@ -195,16 +212,24 @@ export class Game {
         break;
       case 'descending':
         this.hud.setMessage('アーム降下中…');
+        this.sfx.descend();
         break;
       case 'grabbing':
         this.hud.setMessage('キャッチ！');
+        this.sfx.grab();
         break;
       case 'lifting':
-        if (this.heldPrize) this.hud.setMessage('持ち上げ中…うまく運べるか？');
-        else this.hud.setMessage('何も掴めなかった…');
+        if (this.heldPrize) {
+          this.hud.setMessage('持ち上げ中…うまく運べるか？');
+          this.sfx.liftSuccess();
+        } else {
+          this.hud.setMessage('何も掴めなかった…');
+          this.sfx.miss();
+        }
         break;
       case 'gameover':
         this.hud.setMessage(`クレジットがなくなりました。最終スコア: ${this.score}点。リセットで再挑戦！`);
+        this.sfx.gameover();
         break;
       default:
         break;
@@ -275,6 +300,7 @@ export class Game {
         this.score += prize.config.score;
         this.hud.setScore(this.score);
         this.hud.setMessage(`🎉 景品ゲット！ +${prize.config.score}点`);
+        this.sfx.capture();
       }
     }
   }

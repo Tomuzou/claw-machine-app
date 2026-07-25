@@ -45,9 +45,14 @@ body {
   color: #ffca28;
 }
 
-#reset-btn {
-  pointer-events: auto;
+.hud-actions {
   margin-left: auto;
+  display: flex;
+  gap: 8px;
+  pointer-events: auto;
+}
+
+.hud-btn {
   padding: 6px 14px;
   border: none;
   border-radius: 8px;
@@ -57,7 +62,7 @@ body {
   cursor: pointer;
 }
 
-#reset-btn:hover {
+.hud-btn:hover {
   background: rgba(255, 255, 255, 0.3);
 }
 
