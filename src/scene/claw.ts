@@ -29,6 +29,10 @@ export class Claw {
   private readonly hanger = new THREE.Group();
   private readonly fingerPivots: THREE.Group[] = [];
 
+  /** 物理コライダー(physics/clawBody.ts)が追従するための指メッシュ参照 */
+  readonly fingerArms: THREE.Mesh[] = [];
+  readonly fingerTips: THREE.Mesh[] = [];
+
   constructor() {
     const steel = new THREE.MeshStandardMaterial({
       color: 0x546e7a,
@@ -81,6 +85,7 @@ export class Claw {
       arm.position.y = -0.075;
       arm.castShadow = true;
       pivot.add(arm);
+      this.fingerArms.push(arm);
 
       const tipGroup = new THREE.Group();
       tipGroup.position.y = -0.15;
@@ -90,6 +95,7 @@ export class Claw {
       tip.castShadow = true;
       tipGroup.add(tip);
       pivot.add(tipGroup);
+      this.fingerTips.push(tip);
 
       this.fingerPivots.push(pivot);
       root.add(pivot);

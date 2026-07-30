@@ -5,6 +5,7 @@ import { createScene } from './scene';
 import { createMachine } from './scene/machine';
 import { Claw } from './scene/claw';
 import { createPhysicsWorld } from './physics';
+import { ClawCollider } from './physics/clawBody';
 import { createPrizes, syncPrizeMeshes, type PrizeEntity } from './physics/prizes';
 import { Controls } from './controls';
 import { Sfx } from './audio';
@@ -27,9 +28,11 @@ const sfx = new Sfx();
 
 let prizes: PrizeEntity[] = [];
 let game: Game | null = null;
+let clawCollider: ClawCollider | null = null;
 
 showModeSelect(app, (stage) => {
   claw.setSizeScale(stage.clawScale);
+  clawCollider = new ClawCollider(world, claw); // 爪のスケール確定後に生成
   prizes = createPrizes(stage, world, scene);
   const hud = new Hud(app, stage.name, {
     onCameraReset: resetCamera,
@@ -50,6 +53,7 @@ function loop(now: number): void {
   } else {
     claw.update(dt);
   }
+  clawCollider?.update();
   syncPrizeMeshes(prizes);
 
   cameraControls.update();

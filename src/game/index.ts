@@ -1,6 +1,7 @@
 // game/ — ゲーム状態管理(状態機械・把持判定・スコアとクレジット)
 import * as CANNON from 'cannon-es';
 import { CLAW, CHUTE, GRAB, SLIP, TURN } from '../config/constants';
+import { MASK_ALL, MASK_NO_CLAW } from '../physics/clawBody';
 import type { Claw } from '../scene/claw';
 import type { Controls } from '../controls';
 import type { PrizeEntity } from '../physics/prizes';
@@ -57,6 +58,11 @@ export class Game {
   private grabTimer = 0;
   private releaseTimer = 0;
 
+  /** 爪を閉じている間、弾き飛ばさないよう爪衝突を除外している候補景品 */
+  private grabCandidate: PrizeEntity | null = null;
+  /** リリース後に爪衝突を戻すのを待っている景品(即復帰させると弾き飛ぶため) */
+  private pendingMaskRestores: Array<{ prize: PrizeEntity; timer: number }> = [];
+
   /** 待機フェーズの残り時間(秒)。0で自動降下 */
   private turnTimer: number = TURN.timeLimit;
   private lastShownSeconds: number | null = null;
@@ -109,6 +115,7 @@ export class Game {
     this.syncAnchor();
     this.claw.update(dt);
     this.checkCaptures();
+    this.updateMaskRestores(dt);
 
     // クレーンが動いている間はモーター音を鳴らす
     const moving =
@@ -258,10 +265,17 @@ export class Game {
         this.hud.setMessage('アーム降下中…');
         this.sfx.descend();
         break;
-      case 'grabbing':
+      case 'grabbing': {
         this.hud.setMessage('キャッチ！');
         this.sfx.grab();
+        // 爪の真下の景品は「爪の内側にある」扱いにして、閉じる指に弾かれないようにする
+        const found = this.findNearestPrize();
+        this.grabCandidate = found?.prize ?? null;
+        if (this.grabCandidate) {
+          this.grabCandidate.body.collisionFilterMask = MASK_NO_CLAW;
+        }
         break;
+      }
       case 'lifting':
         if (this.heldPrize) {
           this.hud.setMessage(
@@ -288,8 +302,8 @@ export class Game {
    * - 中心からのズレ・質量・サイズでグリップ品質(0〜1)が決まる
    * - グリップが低いと: そもそも掴めない / 拘束が弱く垂れ下がる / 滑りやすい
    */
-  private attemptGrab(): void {
-    // 判定半径・サイズペナルティは爪の大きさに比例する
+  /** 爪中心に最も近い(掴める範囲内の)景品を探す */
+  private findNearestPrize(): { prize: PrizeEntity; dist: number } | null {
     const grabRadius = GRAB.radius * this.claw.sizeScale;
     let best: PrizeEntity | null = null;
     let bestDist: number = grabRadius;
@@ -303,7 +317,42 @@ export class Game {
         bestDist = dist;
       }
     }
-    if (!best) return;
+    return best ? { prize: best, dist: bestDist } : null;
+  }
+
+  /** リリース(または把持失敗)後、少し時間を置いてから爪との衝突を戻す */
+  private scheduleMaskRestore(prize: PrizeEntity): void {
+    if (!this.pendingMaskRestores.some((p) => p.prize === prize)) {
+      this.pendingMaskRestores.push({ prize, timer: 0 });
+    }
+  }
+
+  private updateMaskRestores(dt: number): void {
+    this.pendingMaskRestores = this.pendingMaskRestores.filter((entry) => {
+      if (entry.prize === this.heldPrize || entry.prize === this.grabCandidate) return false;
+      if (entry.prize.captured) return false;
+      entry.timer += dt;
+      if (entry.timer >= 0.8) {
+        entry.prize.body.collisionFilterMask = MASK_ALL;
+        return false;
+      }
+      return true;
+    });
+  }
+
+  private attemptGrab(): void {
+    const grabRadius = GRAB.radius * this.claw.sizeScale;
+    const found = this.findNearestPrize();
+    // 閉じている間に候補が範囲外へ逃げた/入れ替わった場合は、旧候補の衝突を戻す
+    if (this.grabCandidate && this.grabCandidate !== found?.prize) {
+      this.scheduleMaskRestore(this.grabCandidate);
+      this.grabCandidate = null;
+    }
+    if (!found) return;
+    const best = found.prize;
+    const bestDist = found.dist;
+    this.grabCandidate = best;
+    best.body.collisionFilterMask = MASK_NO_CLAW;
 
     // グリップ品質 = 中心ズレ × 質量 × サイズ の複合
     const offsetFactor = 0.4 + 0.6 * (1 - bestDist / grabRadius); // 中心ほど良い
@@ -316,6 +365,8 @@ export class Game {
     // 爪を閉じた瞬間の把持成功判定(グリップが低いとそもそも持ち上がらない)
     if (Math.random() > GRAB.instantSuccessBase + this.grip * 0.9) {
       this.grip = 0;
+      this.grabCandidate = null;
+      this.scheduleMaskRestore(best);
       return;
     }
 
@@ -338,6 +389,7 @@ export class Game {
     );
     this.world.addConstraint(this.constraint);
     this.heldPrize = best;
+    this.grabCandidate = null;
   }
 
   private releaseHeldPrize(): void {
@@ -347,7 +399,10 @@ export class Game {
     }
     if (this.heldPrize) {
       this.heldPrize.body.wakeUp();
+      const released = this.heldPrize;
       this.heldPrize = null;
+      // 爪の内側で重なった状態で衝突を戻すと弾き飛ぶので、少し遅らせて戻す
+      this.scheduleMaskRestore(released);
     }
     this.grip = 0;
   }
