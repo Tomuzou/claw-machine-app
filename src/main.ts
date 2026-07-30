@@ -29,6 +29,7 @@ let prizes: PrizeEntity[] = [];
 let game: Game | null = null;
 
 showModeSelect(app, (stage) => {
+  claw.setSizeScale(stage.clawScale);
   prizes = createPrizes(stage, world, scene);
   const hud = new Hud(app, stage.name, {
     onCameraReset: resetCamera,
@@ -42,7 +43,8 @@ function loop(now: number): void {
   const dt = Math.min((now - last) / 1000, 0.05);
   last = now;
 
-  world.step(1 / 60, dt, 3);
+  // すり抜け対策: 物理刻みを 1/120s に細かくする(最大8サブステップ)
+  world.step(1 / 120, dt, 8);
   if (game) {
     game.update(dt);
   } else {

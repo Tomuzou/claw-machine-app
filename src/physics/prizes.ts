@@ -235,6 +235,7 @@ export function createPrizes(
       allowSleep: true,
       sleepSpeedLimit: 0.15,
       sleepTimeLimit: 0.6,
+      angularDamping: 0.2, // 回転しすぎによる暴れ・めり込みを抑える
     });
     body.quaternion.setFromEuler(config.rotation.x, config.rotation.y, config.rotation.z);
     world.addBody(body);

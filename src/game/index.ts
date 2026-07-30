@@ -150,8 +150,10 @@ export class Game {
   }
 
   private updateDescending(dt: number): void {
-    this.claw.y = Math.max(this.claw.y - CLAW.descendSpeed * dt, CLAW.bottomY);
-    if (this.claw.y <= CLAW.bottomY) {
+    // 爪が大きいほど先端が長いので、降下の下限も爪のスケールに合わせる
+    const bottomY = CLAW.bottomY * this.claw.sizeScale;
+    this.claw.y = Math.max(this.claw.y - CLAW.descendSpeed * dt, bottomY);
+    if (this.claw.y <= bottomY) {
       this.grabTimer = 0;
       this.claw.setOpenTarget(0);
       this.setPhase('grabbing');
@@ -287,8 +289,10 @@ export class Game {
    * - グリップが低いと: そもそも掴めない / 拘束が弱く垂れ下がる / 滑りやすい
    */
   private attemptGrab(): void {
+    // 判定半径・サイズペナルティは爪の大きさに比例する
+    const grabRadius = GRAB.radius * this.claw.sizeScale;
     let best: PrizeEntity | null = null;
-    let bestDist: number = GRAB.radius;
+    let bestDist: number = grabRadius;
     for (const prize of this.prizes) {
       if (prize.captured) continue;
       const dx = prize.body.position.x - this.claw.x;
@@ -302,10 +306,11 @@ export class Game {
     if (!best) return;
 
     // グリップ品質 = 中心ズレ × 質量 × サイズ の複合
-    const offsetFactor = 0.4 + 0.6 * (1 - bestDist / GRAB.radius); // 中心ほど良い
+    const offsetFactor = 0.4 + 0.6 * (1 - bestDist / grabRadius); // 中心ほど良い
     const massFactor = 1 / (1 + best.config.mass * GRAB.massPenalty); // 重いほど悪い
     const maxDim = Math.max(best.config.size.x, best.config.size.z);
-    const sizeFactor = clamp(1.2 - maxDim / GRAB.sizePenaltyDiv, 0.35, 1); // 大きいほど悪い
+    // 爪が大きいほど大きな景品もしっかり掴める
+    const sizeFactor = clamp(1.2 - maxDim / (GRAB.sizePenaltyDiv * this.claw.sizeScale), 0.35, 1);
     this.grip = clamp(offsetFactor * massFactor * sizeFactor, 0, 1);
 
     // 爪を閉じた瞬間の把持成功判定(グリップが低いとそもそも持ち上がらない)
@@ -326,7 +331,7 @@ export class Game {
     const maxForce = 8 + this.grip * 50;
     this.constraint = new CANNON.PointToPointConstraint(
       this.anchor,
-      new CANNON.Vec3(0, -0.15, 0),
+      new CANNON.Vec3(0, -0.15 * this.claw.sizeScale, 0),
       best.body,
       pivotInPrize,
       maxForce

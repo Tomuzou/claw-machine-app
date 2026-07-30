@@ -20,6 +20,9 @@ export class Claw {
   openAmount = 1;
   private openTarget = 1;
 
+  /** 景品サイズに合わせた爪の倍率(ステージ開始時に設定) */
+  sizeScale = 1;
+
   private readonly gantry: THREE.Mesh;
   private readonly trolley: THREE.Mesh;
   private readonly cable: THREE.Mesh;
@@ -99,7 +102,13 @@ export class Claw {
 
   /** 爪先(把持判定の基準点)のy座標 */
   get tipY(): number {
-    return this.y - 0.2;
+    return this.y - 0.2 * this.sizeScale;
+  }
+
+  /** 爪ヘッド(ハブ+指)を景品サイズに合わせて拡大縮小する */
+  setSizeScale(scale: number): void {
+    this.sizeScale = scale;
+    this.hanger.scale.setScalar(scale);
   }
 
   setOpenTarget(v: number): void {

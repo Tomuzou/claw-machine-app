@@ -19,6 +19,8 @@ export function createPhysicsWorld(): CANNON.World {
   world.allowSleep = true;
   world.defaultContactMaterial.friction = 0.4;
   world.defaultContactMaterial.restitution = 0.15;
+  // すり抜け対策: 反復回数を増やして接触解決の精度を上げる
+  (world.solver as CANNON.GSSolver).iterations = 20;
 
   const halfW = FIELD.width / 2;
   const halfD = FIELD.depth / 2;
@@ -38,48 +40,51 @@ export function createPhysicsWorld(): CANNON.World {
     [(CHUTE.maxX + halfW) / 2, -halfT, (CHUTE.minZ + halfD) / 2]
   );
 
-  // ---- 落とし口の縁の仕切り壁 ----
+  // ---- 落とし口の縁の仕切り壁(内側の面は見た目と揃え、厚みを外側へ持たせる) ----
   const chuteW = CHUTE.maxX - CHUTE.minX;
   const chuteD = CHUTE.maxZ - CHUTE.minZ;
+  const guardHalfT = 0.03;
   addStaticBox(
     world,
-    [0.01, CHUTE.guardHeight / 2, chuteD / 2],
-    [CHUTE.maxX + 0.01, CHUTE.guardHeight / 2, (CHUTE.minZ + CHUTE.maxZ) / 2]
+    [guardHalfT, CHUTE.guardHeight / 2, chuteD / 2],
+    [CHUTE.maxX + guardHalfT, CHUTE.guardHeight / 2, (CHUTE.minZ + CHUTE.maxZ) / 2]
   );
   addStaticBox(
     world,
-    [chuteW / 2, CHUTE.guardHeight / 2, 0.01],
-    [(CHUTE.minX + CHUTE.maxX) / 2, CHUTE.guardHeight / 2, CHUTE.minZ - 0.01]
+    [chuteW / 2, CHUTE.guardHeight / 2, guardHalfT],
+    [(CHUTE.minX + CHUTE.maxX) / 2, CHUTE.guardHeight / 2, CHUTE.minZ - guardHalfT]
   );
 
-  // ---- 外周のガラス壁(景品が外へ出ないように) ----
-  const wallHalfH = FIELD.wallHeight / 2;
-  addStaticBox(world, [halfW, wallHalfH, 0.015], [0, wallHalfH, halfD + 0.015]);
-  addStaticBox(world, [halfW, wallHalfH, 0.015], [0, wallHalfH, -halfD - 0.015]);
-  addStaticBox(world, [0.015, wallHalfH, halfD], [halfW + 0.015, wallHalfH, 0]);
-  addStaticBox(world, [0.015, wallHalfH, halfD], [-halfW - 0.015, wallHalfH, 0]);
+  // ---- 外周のガラス壁(すり抜け防止のため厚めにし、上方向にも余裕を持たせる) ----
+  const wallHalfT = 0.08;
+  const wallHalfH = FIELD.wallHeight / 2 + 0.15;
+  addStaticBox(world, [halfW + wallHalfT * 2, wallHalfH, wallHalfT], [0, wallHalfH, halfD + wallHalfT]);
+  addStaticBox(world, [halfW + wallHalfT * 2, wallHalfH, wallHalfT], [0, wallHalfH, -halfD - wallHalfT]);
+  addStaticBox(world, [wallHalfT, wallHalfH, halfD + wallHalfT * 2], [halfW + wallHalfT, wallHalfH, 0]);
+  addStaticBox(world, [wallHalfT, wallHalfH, halfD + wallHalfT * 2], [-halfW - wallHalfT, wallHalfH, 0]);
 
-  // ---- 落とし口シャフトの壁(まっすぐ下へ落とす) ----
+  // ---- 落とし口シャフトの壁(厚みを穴の外側へ持たせて、まっすぐ下へ落とす) ----
   const shaftHalfH = 0.25;
+  const shaftHalfT = 0.04;
   addStaticBox(
     world,
-    [chuteW / 2, shaftHalfH, 0.01],
-    [(CHUTE.minX + CHUTE.maxX) / 2, -shaftHalfH, CHUTE.minZ + 0.005]
+    [chuteW / 2 + shaftHalfT * 2, shaftHalfH, shaftHalfT],
+    [(CHUTE.minX + CHUTE.maxX) / 2, -shaftHalfH, CHUTE.minZ - shaftHalfT]
   );
   addStaticBox(
     world,
-    [chuteW / 2, shaftHalfH, 0.01],
-    [(CHUTE.minX + CHUTE.maxX) / 2, -shaftHalfH, CHUTE.maxZ - 0.005]
+    [chuteW / 2 + shaftHalfT * 2, shaftHalfH, shaftHalfT],
+    [(CHUTE.minX + CHUTE.maxX) / 2, -shaftHalfH, CHUTE.maxZ + shaftHalfT]
   );
   addStaticBox(
     world,
-    [0.01, shaftHalfH, chuteD / 2],
-    [CHUTE.minX + 0.005, -shaftHalfH, (CHUTE.minZ + CHUTE.maxZ) / 2]
+    [shaftHalfT, shaftHalfH, chuteD / 2 + shaftHalfT * 2],
+    [CHUTE.minX - shaftHalfT, -shaftHalfH, (CHUTE.minZ + CHUTE.maxZ) / 2]
   );
   addStaticBox(
     world,
-    [0.01, shaftHalfH, chuteD / 2],
-    [CHUTE.maxX - 0.005, -shaftHalfH, (CHUTE.minZ + CHUTE.maxZ) / 2]
+    [shaftHalfT, shaftHalfH, chuteD / 2 + shaftHalfT * 2],
+    [CHUTE.maxX + shaftHalfT, -shaftHalfH, (CHUTE.minZ + CHUTE.maxZ) / 2]
   );
 
   return world;

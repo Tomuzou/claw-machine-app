@@ -58,6 +58,8 @@ export interface StageConfig {
   name: string;
   /** 開始時の残クレジット */
   initialCredits: number;
+  /** 景品サイズに合わせたアーム(爪)の倍率 */
+  clawScale: number;
   /** 景品の配置リスト */
   prizes: PrizeConfig[];
 }
